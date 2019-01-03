@@ -8,10 +8,12 @@ from model import *
 
 MIN_PERCENT_FACE_SAME = 70
 
-
-# load file model
+# load file
+print('[INFO] Đang tải dữ liệu detector')
 detector = load_detector()
+print('[INFO] Đang tải dữ liệu embedder')
 embedder = load_embedder()
+print('[INFO] Đang tải dữ liệu face cascade')
 face_cascade = load_face_cascade()
 
 
@@ -228,6 +230,4 @@ def face_detect(image):
 
     # trả về hình ảnh
     return result, image
-
-
 

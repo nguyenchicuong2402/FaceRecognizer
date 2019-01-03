@@ -91,7 +91,7 @@ def item_training_from_camera():
 def item_recognizer_from_camera():
     print("""
             ***********************************************
-            *        NHẬN DIỆN KHUÔN MẶT TỪ Camera        *
+            *        NHẬN DIỆN KHUÔN MẶT TỪ CAMERA        *
             ***********************************************
             ------------by nguyenchicuong2402--------------
     """)
@@ -109,14 +109,13 @@ def item_recognizer_from_camera():
 
             if ret == True:
                 result, image = face_detect(frame)
-                cv2.imshow('Detect', image)
+                cv2.imshow('Nhan dien guong mat', image)
             else:
                 break;
 
             if cv2.waitKey(25) & 0xFF == 27:
                 break
 
-        # When everything done, release the capture
         cap.release()
         cv2.destroyAllWindows()
 
