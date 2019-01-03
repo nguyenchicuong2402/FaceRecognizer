@@ -41,15 +41,7 @@ def item_training_from_camera():
     """)
 
     # nhập thông tin người
-    name = str(input('>> Nhập tên: '))
-
-    # tạo folder chứa hình
-    dir_path = CAMERA_PATH + '\\{0}'.format(name)
-    try:
-        os.mkdir(dir_path)
-        print('[INFO] Đã tạo thư mục {0}'.format(name))
-    except FileExistsError:
-        print('[WARNING] Thư mục {0} đã tồn tại'.format(name))
+    id = str(input('>> Nhập ID: '))
 
     cap = cv2.VideoCapture(0)
 
@@ -65,13 +57,14 @@ def item_training_from_camera():
             ret, frame = cap.read()
 
             if ret == True:
-                result, image = face_detect(frame)
+                length, image = face_detect(frame, show_rec=True)
                 cv2.imshow('Training', image)
 
-                if result:
-                    cv2.imwrite(dir_path + '\\{:05d}.jpg'.format(i), image)
+                if length == 1:
+                    face_encoding(id, image)
+                    print('[INFO] Đã training {}/50'.format(i+1))
                     i += 1
-                    if i == 500: break
+                    if i == 50: break
             else:
                 break;
 
@@ -81,10 +74,22 @@ def item_training_from_camera():
         # When everything done, release the capture
         cap.release()
         cv2.destroyAllWindows()
+        print('[INFO] Đã đóng camera')
 
         # bắt đầu training
         if i != 0:
-            known_training(dir_path)
+            known_training()
+
+
+# học củng cố
+def item_training_from_google():
+    ids = select_person().split('\n')
+
+    for id in ids:
+        download(id, 10, r'download')
+
+    known_training('download')
+
 
 
 # nhận diện khuôn mặt từ camera
@@ -108,7 +113,8 @@ def item_recognizer_from_camera():
             ret, frame = cap.read()
 
             if ret == True:
-                result, image = face_detect(frame)
+                length, img = face_detect(frame)
+                image, id, percent = face_recognizer(img)
                 cv2.imshow('Nhan dien guong mat', image)
             else:
                 break;
@@ -127,6 +133,7 @@ def item_recognizer_from_image():
             *       NHẬN DIỆN KHUÔN MẶT TỪ HÌNH ẢNH       *
             ***********************************************
             ------------by nguyenchicuong2402--------------
+    [INFO] Nhập đường dẫn rỗng hoặc sai để thoát
     """)
 
     while True:
@@ -139,11 +146,14 @@ def item_recognizer_from_image():
                 image, id, percent = face_recognizer(img)
                 cv2.imshow('Nhan dien khuon mat', image)
 
-                # ESC - thoát
-                if cv2.waitKey(25) & 0xFF == 27:
-                    break
+                cv2.waitKey(0)
             else:
                 print('[ERROR] Không thể mở hình ảnh')
+        else:
+            print('[ERROR] Không tìm thấy hình ảnh')
+            break
+        
+    cv2.destroyAllWindows()
 
 
 # menu training
@@ -156,7 +166,7 @@ def menu_training():
 
                 1. Training qua thư mục hình ảnh
                 2. Training qua camera
-                3. Training qua tìm kiếm Google
+                3. Training qua tìm kiếm Google (học thêm)
                 0. Thoát
     """)
 
@@ -176,6 +186,8 @@ def menu_training():
         item_training_from_folder()
     elif choose == 2:
         item_training_from_camera()
+    elif choose == 3:
+        item_training_from_google()
 
 
 # menu nhận diện

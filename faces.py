@@ -17,88 +17,106 @@ print('[INFO] Đang tải dữ liệu face cascade')
 face_cascade = load_face_cascade()
 
 
+# tạo vector face
+def face_ROI(image):
+    # lấy kích thước ảnh
+    image = imutils.resize(image, width=600)
+    (h, w) = image.shape[:2]
+
+    # construct a blob from the image
+    imageBlob = cv2.dnn.blobFromImage(
+        cv2.resize(image, (300, 300)), 1.0, (300, 300),
+        (104.0, 177.0, 123.0), swapRB=False, crop=False)
+
+    # apply OpenCV's deep learning-based face detector to localize 
+    # faces in the input image
+    detector.setInput(imageBlob)
+    detections = detector.forward()
+
+    # ensure at least one face was found
+    if len(detections) > 0:
+        # we're making the assumption that each image has only ONE
+        # face, so find the bounding box with the largest probability
+        i = np.argmax(detections[0, 0, :, 2])
+        confidence = detections[0, 0, i, 2]
+
+        # ensure that the detection with the largest probability also
+        # means our minimum probability test (thus helping filter out
+        # weak detections)
+        if confidence > CONFIDENCE:
+            # tạo khung chứa khuôn mặt nhận diện được
+            box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
+            (startX, startY, endX, endY) = box.astype("int")
+
+            # extract the face ROI and grab the ROI dimensions
+            face = image[startY:endY, startX:endX]
+            (fH, fW) = face.shape[:2]
+
+            # ensure the face width and height are sufficiently large
+            if fW < 20 or fH < 20:
+                return
+
+            # construct a blob for the face ROI, then pass the blob
+            # through our face embedding model to obtain the 128-d
+            # quantification of the face
+            faceBlob = face_blod = cv2.dnn.blobFromImage(face, 1.0 / 255,
+                    (96, 96), (0, 0, 0), swapRB=True, crop=False)
+            embedder.setInput(faceBlob)
+            vec = embedder.forward()
+            
+            return vec, box
+        else:
+            return None, None
+    else:
+        return None, None
+
+# mã hoá khuôn mặt từ hình ảnh
+def face_encoding(id, image):
+    # thêm tên và embedding face
+    vec, box = face_ROI(image)
+    if vec is not None:
+        embedding = vec.flatten()
+
+        # lưu lại dữ liệu đã xử lý
+        data = {"embedding": embedding, "id": id}
+        save_embedding(data)
+
+
 # xử lý dữ liệu trước khi training
-def extract_embeddings(dataPath):
+def extract_embeddings(dataTraining):
     # kiểm tra đường dẫn
-    if os.path.exists(dataPath) == False:
+    if os.path.exists(dataTraining) == False:
         print('[ERROR] Không tìm thấy thư mục')
         return
 
-    # chứa dữ liệu những khuôn mặt và tên của người
-    knownEmbeddings = []
-    knownNames = []
     # tổng số khuôn mặt nhận biết được
     total = 0
 
     # lấy tất cả đường dẫn hình ảnh trong thư mục
-    imagePaths = list(paths.list_images(dataPath))
+    imagePaths = list(paths.list_images(dataTraining))
     for (i, imagePath) in enumerate(imagePaths):
         print("(+) Đang xử lý hình ảnh {}/{}".format(i + 1, len(imagePaths)))
-        name = imagePath.split(os.path.sep)[-2]
+        id = imagePath.split(os.path.sep)[-2]
 
         # load ảnh 
         try:
             image = cv2.imread(imagePath)
             image = imutils.resize(image, width=600)
-            (h, w) = image.shape[:2]
         except:
             print('[ERROR] Lỗi tải hình ảnh')
             continue
+        else:
+            face_encoding(id, image)
+            total += 1
 
-        # construct a blob from the image
-        imageBlob = blod_image(image)
-
-        # apply OpenCV's deep learning-based face detector to localize 
-        # faces in the input image
-        detector.setInput(imageBlob)
-        detections = detector.forward()
-
-        # ensure at least one face was found
-        if len(detections) > 0:
-            # we're making the assumption that each image has only ONE
-            # face, so find the bounding box with the largest probability
-            i = np.argmax(detections[0, 0, :, 2])
-            confidence = detections[0, 0, i, 2]
-
-            # ensure that the detection with the largest probability also
-            # means our minimum probability test (thus helping filter out
-            # weak detections)
-            if confidence > CONFIDENCE:
-                # compute the (x, y)-coordinates of the bounding box for
-                # the face
-                box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
-                (startX, startY, endX, endY) = box.astype("int")
-
-                # extract the face ROI and grab the ROI dimensions
-                face = image[startY:endY, startX:endX]
-                (fH, fW) = face.shape[:2]
-
-                # ensure the face width and height are sufficiently large
-                if fW < 20 or fH < 20:
-                    continue
-
-                # construct a blob for the face ROI, then pass the blob
-                # through our face embedding model to obtain the 128-d
-                # quantification of the face
-                faceBlob = blod_face_image(face)
-                embedder.setInput(faceBlob)
-                vec = embedder.forward()
-
-                # thêm tên và embedding face
-                knownNames.append(name)
-                knownEmbeddings.append(vec.flatten())
-                total += 1
-
-    # lưu lại dữ liệu đã xử lý
-    print("(*) serializing {} encodings...".format(total))
-    data = {"embeddings": knownEmbeddings, "ids": knownNames}
-    save_embedding(data)
+    print('[INFO] Đã encode {} khuôn mặt trên tổng số {}'.format(total, len(imagePaths)))
 
 
 # training dữ liệu đã chọn lọc
-def known_training(dataPath):
+def known_training(dataTraining=None):
     # tiền xử lý dữ liệu trước khi training
-    extract_embeddings(dataPath)
+    if dataTraining is not None:
+        extract_embeddings(dataTraining)
 
     # load the face embeddings
     data = load_embedding()
@@ -106,6 +124,7 @@ def known_training(dataPath):
     # lưu id khuôn mặt
     label_encoder = LabelEncoder()
     ids = label_encoder.fit_transform(data["ids"])
+    print(ids)
 
     # train the model used to accept the 128-d embeddings of the face and
     # then produce the actual face recognition
@@ -123,14 +142,14 @@ def known_training(dataPath):
 
 
 # training dữ liệu không chọn lọc
-def unknown_training(dataPath):
+def unknown_training(dataTraining):
     # kiểm tra thư mục có tồn tại không
-    if os.path.exists(dataPath) == False:
+    if os.path.exists(dataTraining) == False:
         print('[ERROR] Thư mục không tồn tại')
         return False
 
     # lấy tất cả đường dẫn hình ảnh trong thư mục
-    imagePaths = list(paths.list_images(dataPath))
+    imagePaths = list(paths.list_images(dataTraining))
     for (i, imagePath) in enumerate(imagePaths):
         try:
             img = cv2.imread(imagePath)
@@ -144,7 +163,7 @@ def unknown_training(dataPath):
             print('[ERROR] Lỗi xử lý hình trước khi training')
 
     # bắt đầu training
-    training(dataPath)
+    training(dataTraining)
 
 
 # nhận diện gương mặt
@@ -154,63 +173,32 @@ def face_recognizer(image):
     label_encoder = load_label_encoder()
 
     #resize image
-    image = imutils.resize(image, width=600)
-    (h, w) = image.shape[:2]
+    try:
+        image = imutils.resize(image, width=600)
+    except:
+        print('[ERROR] Lỗi file hình ảnh')
+    else:
+        vec, box = face_ROI(image)
+        (startX, startY, endX, endY) = box.astype("int")
 
-    # construct a blob from the image
-    imageBlob = blod_image(image)
+        # perform classification to recognize the face
+        preds = recognizer.predict_proba(vec)[0]
+        info = np.argmax(preds)
+        percent = preds[info] * 100
+        id = label_encoder.classes_[info]
 
-    # apply OpenCV's deep learning-based face detector to localize faces in the input image
-    detector.setInput(imageBlob)
-    detections = detector.forward()
-
-    # loop over the detections
-    for i in range(0, detections.shape[2]):
-        # extract the confidence (i.e., probability) associated with the
-        # prediction
-        confidence = detections[0, 0, i, 2]
-
-        # filter out weak detections
-        if confidence > CONFIDENCE:
-            # compute the (x, y)-coordinates of the bounding box for the face
-            box = detections[0, 0, i, 3:7] * np.array([w, h, w, h])
-            (startX, startY, endX, endY) = box.astype("int")
-
-            # extract the face ROI
-            face = image[startY:endY, startX:endX]
-            (fH, fW) = face.shape[:2]
-
-            # ensure the face width and height are sufficiently large
-            if fW < 20 or fH < 20:
-                continue
-
-            # construct a blob for the face ROI, then pass the blob
-            # through our face embedding model to obtain the 128-d
-            # quantification of the face
-            faceBlob = blod_face_image(face)
-            embedder.setInput(faceBlob)
-            vec = embedder.forward()
-
-            # perform classification to recognize the face
-            preds = recognizer.predict_proba(vec)[0]
-            info = np.argmax(preds)
-            percent = preds[info] * 100
-            id = label_encoder.classes_[info]
-
-            # draw the bounding box of the face along with the associated probability
-            text = "{} [{:.2f}%]".format(id, percent)
-            y = startY - 10 if startY - 10 > 10 else startY + 10
-            cv2.rectangle(image, (startX, startY), (endX, endY),
-                (0, 0, 255), 2)
-            cv2.putText(image, text, (startX - 25, endY + 25),
-                cv2.FONT_HERSHEY_COMPLEX , 0.75, (0, 0, 255), 1)
+        # draw the bounding box of the face along with the associated probability
+        text = "{} [{:.2f}%]".format(id, percent)
+        cv2.rectangle(image, (startX, startY), (endX, endY),
+            (0, 0, 255), 2)
+        cv2.putText(image, text, (startX - 25, endY + 25),
+            cv2.FONT_HERSHEY_COMPLEX , 0.75, (0, 0, 255), 1)
 
     return image, id, percent
 
 
 # detect khuôn mặt
-def face_detect(image):
-    result = False
+def face_detect(image, show_rec=None):
     # kiểm tra ảnh có null không
     if image is not None:
         # chuyển ảnh màu thành ảnh xám
@@ -219,15 +207,12 @@ def face_detect(image):
         # quét các khuôn mặt trong ảnh
         faces = face_cascade.detectMultiScale(image_gray, 1.3, 5)
 
-        # với mỗi khuôn mặt vẽ 1 hình vuông để nhận biết
-        for (x, y, w, h) in faces:
-            # image, toạ độ x-y, chiều rộng + chiều cao khung, màu, độ dày
-            image = cv2.rectangle(image, (x, y), (x + w, y + h), (255, 0, 0), 2)
-
-        if len(faces) > 0:
-            print('[INFO] Tìm thấy {0} khuôn mặt'.format(len(faces)))
-            result = True
+        if show_rec is not None:
+            # với mỗi khuôn mặt vẽ 1 hình vuông để nhận biết
+            for (x, y, w, h) in faces:
+                # image, toạ độ x-y, chiều rộng + chiều cao khung, màu, độ dày
+                image = cv2.rectangle(image, (x, y), (x + w, y + h), (255, 0, 0), 2)
 
     # trả về hình ảnh
-    return result, image
+    return len(faces), image
 

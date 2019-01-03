@@ -4,14 +4,15 @@ import os
 
 
 CONFIDENCE = 0.5
-EMBEDDING_MODEL_PATH = os.path.dirname(__file__) + '\\data_model\\openface\\openface_nn4.small2.v1.t7'
-EMBEDDING_PATH = os.path.dirname(__file__) + '\\data_model\\EMBEDDINGS.pickle'
-RECOGNIZER_PATH = os.path.dirname(__file__) + '\\data_model\\RECOGNIZER.pickle'
-LABEL_ENCODER_PATH = os.path.dirname(__file__) + '\\data_model\\LABEL_ENCODER.pickle'
-PROTO_PATH = os.path.dirname(__file__) + '\\data_model\\face_detection_model\\deploy.prototxt'
-MODEL_PATH = os.path.dirname(__file__) + '\\data_model\\face_detection_model\\res10_300x300_ssd_iter_140000.caffemodel'
-FACE_CASCADE_PATH = os.path.dirname(__file__) + '\\data_model\\face_detection_model_opencv\\haarcascades\\haarcascade_frontalface_default.xml'
-
+EMBEDDING_MODEL_PATH = os.path.dirname(__file__) + r'\data_model\openface\openface_nn4.small2.v1.t7'
+EMBEDDING_PATH = os.path.dirname(__file__) + r'\data_model\EMBEDDINGS.pickle'
+EMBEDDINGS_DEFAULT_PATH = os.path.dirname(__file__) + r'\data_model\DEFAULT_EMBEDDINGS.pickle'
+RECOGNIZER_PATH = os.path.dirname(__file__) + r'\data_model\RECOGNIZER.pickle'
+LABEL_ENCODER_PATH = os.path.dirname(__file__) + r'\data_model\LABEL_ENCODER.pickle'
+PROTO_PATH = os.path.dirname(__file__) + r'\data_model\face_detection_model\deploy.prototxt'
+MODEL_PATH = os.path.dirname(__file__) + r'\data_model\face_detection_model\res10_300x300_ssd_iter_140000.caffemodel'
+FACE_CASCADE_PATH = os.path.dirname(__file__) + r'\data_model\face_detection_model_opencv\haarcascades\haarcascade_frontalface_default.xml'
+ID_PERSON_PATH = os.path.dirname(__file__) + r'\data_model\ID_PERSON.txt'
 
 # xoá dữ liệu training
 def delete_training_data():
@@ -47,29 +48,23 @@ def load_embedder():
 
 
 # save embedding
-def save_embedding(data):
-    # nếu đã có file thì tiến hành chèn vào cuối file
-    if os.path.isfile(EMBEDDING_PATH):
-        embeddings = []
-        ids = []
+def save_embedding(encode):
+    embeddings = []
+    ids = []
 
-        dt = load_embedding()
-        for item in dt['embeddings']:
-            embeddings.append(item)
-        for id in dt['ids']:
-            ids.append(id)
+    # đọc face encode đã có 
+    data = load_embedding()
+    for item in data['embeddings']:
+        embeddings.append(item)
+    for id in data['ids']:
+        ids.append(id)
 
+    # thêm encode mới
+    embeddings.append(encode['embedding'])
+    ids.append(encode['id'])
 
-        for item in data['embeddings']:
-            embeddings.append(item)
-        for id in data['ids']:
-            ids.append(id)
+    data = {"embeddings": embeddings, "ids": ids}
 
-        data = {"embeddings": embeddings, "ids": ids}
-
-        for d in data['embeddings']:
-            print(d)
-        
     try:
         f = open(EMBEDDING_PATH, "wb")
         f.write(pickle.dumps(data))
@@ -105,8 +100,10 @@ def load_embedding():
         if os.path.isfile(EMBEDDING_PATH):
             embedddings = pickle.loads(open(EMBEDDING_PATH, "rb").read())
             return embedddings
+        # load file embedding default
         else:
-            print('[ERROR] Vui lòng Training trước')
+            embedddings = pickle.loads(open(EMBEDDINGS_DEFAULT_PATH, "rb").read())
+            return embedddings
     except:
         print('[ERROR] Lỗi load file Embedding')
         
@@ -135,27 +132,6 @@ def load_label_encoder():
         print('[ERROR] Lỗi load file label encoder')
 
 
-# blod image
-def blod_image(image):
-    try:
-        imageBlob = cv2.dnn.blobFromImage(
-            cv2.resize(image, (300, 300)), 1.0, (300, 300),
-            (104.0, 177.0, 123.0), swapRB=False, crop=False)
-        return imageBlob
-    except:
-        print('[ERROR] Lỗi Blod Image')
-
-
-# blod face image
-def blod_face_image(face):
-    try:
-        face_blod = cv2.dnn.blobFromImage(face, 1.0 / 255,
-            (96, 96), (0, 0, 0), swapRB=True, crop=False)
-        return face_blod
-    except:
-        print('[ERROR] Lỗi Blod face image')
-
-
 # load file face cascade
 def load_face_cascade():
     if os.path.exists(FACE_CASCADE_PATH) == True:
@@ -165,3 +141,17 @@ def load_face_cascade():
             print('[ERROR] Lỗi load file face cascade')
     else:
         print('[ERROR] Không tìm thấy file face cascade ')
+
+
+# load id những người đã thêm
+def select_person():
+    try:
+      ,l  file = open(ID_PERSON_PATH, "r")
+    except:
+        print('[ERROR] Không thể mở file ID Person')
+    else:
+        return file.read()
+    finally:
+        file.close()
+
+
